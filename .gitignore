@@ -137,3 +137,6 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Generated videos (keep directory but ignore MP4 files)
+/public/videos/*.mp4
