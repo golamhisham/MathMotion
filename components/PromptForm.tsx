@@ -15,6 +15,10 @@ export default function PromptForm() {
   const [stylePreset, setStylePreset] = useState<StylePreset>(DEFAULT_STYLE_PRESET);
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    remaining: number;
+    resetTime?: number;
+  } | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -46,6 +50,25 @@ export default function PromptForm() {
         body: JSON.stringify(formData),
       });
 
+      // Extract rate limit info from headers
+      const remaining = response.headers.get('X-RateLimit-Remaining');
+      const resetTime = response.headers.get('X-RateLimit-Reset');
+      if (remaining !== null) {
+        setRateLimitInfo({
+          remaining: parseInt(remaining, 10),
+          resetTime: resetTime ? parseInt(resetTime, 10) : undefined,
+        });
+      }
+
+      // Handle rate limit (429)
+      if (response.status === 429) {
+        const data = await response.json();
+        const retryAfter = data.retryAfter || 60;
+        setError(`Rate limited. Please try again in ${retryAfter} seconds.`);
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to submit job');
       }
@@ -73,6 +96,15 @@ export default function PromptForm() {
         value={stylePreset}
         onChange={setStylePreset}
       />
+
+      {/* Rate limit info */}
+      {rateLimitInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-700">
+            Requests remaining: <span className="font-semibold">{rateLimitInfo.remaining}/10</span>
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <GenerateButton

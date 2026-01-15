@@ -57,8 +57,8 @@ export class JobRepository {
     newStatus: JobStatus
   ): boolean {
     const validTransitions: Record<JobStatus, JobStatus[]> = {
-      queued: ['generating', 'failed'],
-      generating: ['rendering', 'failed'],
+      queued: ['generating_code', 'failed'],
+      generating_code: ['rendering', 'failed'],
       rendering: ['done', 'failed'],
       done: [],
       failed: [],
@@ -101,6 +101,13 @@ export class JobRepository {
         updatedAt: new Date().toISOString(),
       };
 
+      // Set phase timestamps when entering new status
+      if (status === 'generating_code') {
+        updateData.codeGenerationStartedAt = new Date().toISOString();
+      } else if (status === 'rendering') {
+        updateData.renderingStartedAt = new Date().toISOString();
+      }
+
       if (progress !== undefined) {
         updateData.progress = progress;
       }
@@ -126,7 +133,7 @@ export class JobRepository {
     }
   }
 
-  async updateJobWithCode(jobId: string, code: string): Promise<Job | null> {
+  async updateJobWithCode(jobId: string, code: string, explanation?: string): Promise<Job | null> {
     try {
       const collection = await this.getCollection();
 
@@ -134,23 +141,28 @@ export class JobRepository {
         return null;
       }
 
-      // Fetch current job to ensure it's in 'generating' status
+      // Fetch current job to ensure it's in 'generating_code' status
       const currentJob = await this.findJobById(jobId);
-      if (!currentJob || currentJob.status !== 'generating') {
+      if (!currentJob || currentJob.status !== 'generating_code') {
         console.error(
           `Cannot update code for job ${jobId} with status ${currentJob?.status}`
         );
         return null;
       }
 
+      const updateData: any = {
+        'output.code': code,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Add explanation if provided
+      if (explanation) {
+        updateData['output.explanation'] = explanation;
+      }
+
       const result = await collection.findOneAndUpdate(
         { _id: new ObjectId(jobId) },
-        {
-          $set: {
-            'output.code': code,
-            updatedAt: new Date().toISOString(),
-          },
-        },
+        { $set: updateData },
         { returnDocument: 'after' }
       );
 
@@ -209,7 +221,8 @@ export class JobRepository {
     jobId: string,
     errorMessage?: string,
     errorLogs?: string,
-    errorStage?: 'code_generation' | 'rendering' | 'validation'
+    errorStage?: 'code_generation' | 'rendering' | 'validation',
+    errorType?: 'validation' | 'runtime_error' | 'timeout' | 'network_error' | 'api_error' | 'unknown'
   ): Promise<Job | null> {
     try {
       const collection = await this.getCollection();
@@ -232,6 +245,7 @@ export class JobRepository {
                 errorLogs ||
                 'Manim encountered an error during rendering. This could be due to invalid mathematical syntax or unsupported operations.',
               stage: errorStage || 'rendering',
+              type: errorType || 'unknown',
               timestamp: new Date().toISOString(),
             },
             progress: 0,
@@ -259,11 +273,28 @@ export class JobRepository {
       stylePreset: doc.stylePreset,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
+      queuedAt: doc.queuedAt,
+      codeGenerationStartedAt: doc.codeGenerationStartedAt,
+      renderingStartedAt: doc.renderingStartedAt,
+      attemptNumber: doc.attemptNumber ?? 1,
+      parentJobId: doc.parentJobId,
+      maxAttempts: doc.maxAttempts ?? 3,
+      autoFixAttemptCount: doc.autoFixAttemptCount ?? 0,
+      isAutoFixJob: doc.isAutoFixJob,
+      originalFailedJobId: doc.originalFailedJobId,
+      lastFailedCode: doc.lastFailedCode,
+      lastErrorLogs: doc.lastErrorLogs,
       output: doc.output,
       error: doc.error,
       progress: doc.progress,
       progressMessage: doc.progressMessage,
+      isCacheHit: doc.isCacheHit,
+      cachedFromJobId: doc.cachedFromJobId,
     };
+  }
+
+  canRetry(job: Job): boolean {
+    return job.status === 'failed' && job.attemptNumber < job.maxAttempts;
   }
 }
 

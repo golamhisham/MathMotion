@@ -11,7 +11,7 @@ export interface ValidationResult {
 }
 
 // Job-related types
-export type JobStatus = 'queued' | 'generating' | 'rendering' | 'done' | 'failed';
+export type JobStatus = 'queued' | 'generating_code' | 'rendering' | 'done' | 'failed';
 
 export interface JobOutput {
   videoUrl: string;
@@ -24,6 +24,7 @@ export interface JobError {
   logs?: string;
   stage?: 'code_generation' | 'rendering' | 'validation';
   timestamp?: string;
+  type?: 'validation' | 'runtime_error' | 'timeout' | 'network_error' | 'api_error' | 'unknown';
 }
 
 export interface Job {
@@ -33,10 +34,23 @@ export interface Job {
   stylePreset: StylePreset;
   createdAt: string;
   updatedAt: string;
+  queuedAt?: string;
+  codeGenerationStartedAt?: string;
+  renderingStartedAt?: string;
+  attemptNumber: number;
+  parentJobId?: string;
+  maxAttempts: number;
+  autoFixAttemptCount: number;
+  isAutoFixJob?: boolean;
+  originalFailedJobId?: string;
+  lastFailedCode?: string;
+  lastErrorLogs?: string;
   output?: JobOutput;
   error?: JobError;
   progress?: number;
   progressMessage?: string;
+  isCacheHit?: boolean;
+  cachedFromJobId?: string;
 }
 
 export interface JobApiResponse {

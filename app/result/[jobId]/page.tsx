@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useJobPolling } from '@/lib/hooks/useJobPolling';
@@ -9,6 +9,7 @@ import LoadingProgress from '@/components/result/LoadingProgress';
 import VideoPlayer from '@/components/result/VideoPlayer';
 import CodeDisplay from '@/components/result/CodeDisplay';
 import ErrorDisplay from '@/components/result/ErrorDisplay';
+import { galleryCache } from '@/lib/services/galleryCache';
 
 interface PageProps {
   params: Promise<{ jobId: string }>;
@@ -18,11 +19,26 @@ export default function ResultPage({ params }: PageProps) {
   const { jobId } = use(params);
   const { job, loading, error } = useJobPolling(jobId);
   const router = useRouter();
+  const [regenerating, setRegenerating] = useState(false);
 
-  const handleRetry = async () => {
+  const handleRegenerateGalleryExample = async () => {
     if (!job) return;
 
+    setRegenerating(true);
     try {
+      // Find which gallery example this job matches
+      const { GALLERY_EXAMPLES } = await import('@/lib/constants');
+      const matchingExample = GALLERY_EXAMPLES.find(
+        (ex) => ex.prompt === job.prompt && ex.stylePreset === job.stylePreset
+      );
+
+      if (matchingExample) {
+        // Clear cache for this example
+        galleryCache.clearCacheForExample(matchingExample.id);
+        console.log(`[Result] Cleared cache for gallery example: ${matchingExample.id}`);
+      }
+
+      // Create a new job with fresh generation
       const response = await fetch('/api/jobs/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,9 +51,61 @@ export default function ResultPage({ params }: PageProps) {
       if (response.ok) {
         const data = await response.json();
         router.push(`/result/${data.job.id}`);
+      } else {
+        console.error('Regeneration failed:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Regeneration failed:', error);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!job) return;
+
+    try {
+      const response = await fetch('/api/jobs/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: job.prompt,
+          stylePreset: job.stylePreset,
+          parentJobId: job.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/result/${data.job.id}`);
+      } else {
+        console.error('Retry failed:', response.statusText);
       }
     } catch (error) {
       console.error('Retry failed:', error);
+    }
+  };
+
+  const handleAutoFix = async () => {
+    if (!job) return;
+
+    try {
+      const response = await fetch('/api/jobs/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoFixJobId: job.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/result/${data.job.id}`);
+      } else {
+        console.error('Auto-fix failed:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Auto-fix failed:', error);
     }
   };
 
@@ -123,7 +191,7 @@ export default function ResultPage({ params }: PageProps) {
         <div className="space-y-6">
           {/* Loading/Processing State */}
           {(job.status === 'queued' ||
-            job.status === 'generating' ||
+            job.status === 'generating_code' ||
             job.status === 'rendering') && (
               <LoadingProgress
                 status={job.status}
@@ -143,12 +211,66 @@ export default function ResultPage({ params }: PageProps) {
                 code={job.output.code}
                 explanation={job.output.explanation}
               />
+
+              {/* Regenerate Button for Gallery Examples */}
+              <div className="text-center mt-6">
+                <button
+                  onClick={handleRegenerateGalleryExample}
+                  disabled={regenerating}
+                  className="inline-flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {regenerating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Regenerate
+                    </>
+                  )}
+                </button>
+              </div>
             </>
           )}
 
           {/* Error State */}
           {job.status === 'failed' && job.error && (
-            <ErrorDisplay error={job.error} onRetry={handleRetry} />
+            <>
+              <ErrorDisplay
+                error={job.error}
+                onRetry={handleRetry}
+                onAutoFix={handleAutoFix}
+                attemptNumber={job.attemptNumber}
+                maxAttempts={job.maxAttempts}
+                autoFixAttemptCount={job.autoFixAttemptCount}
+              />
+
+              {/* Link to previous attempt */}
+              {job.parentJobId && (
+                <div className="mt-6 text-center">
+                  <Link
+                    href={`/result/${job.parentJobId}`}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    View previous attempt
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
 

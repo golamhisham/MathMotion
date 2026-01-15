@@ -17,6 +17,7 @@ export type ErrorType = 'network' | 'validation' | 'api_error' | 'rate_limit';
 export interface ManimCodeGenerationResult {
   success: boolean;
   code?: string;
+  explanation?: string;
   error?: {
     type: ErrorType;
     message: string;
@@ -41,10 +42,18 @@ export class ManimCodeGeneratorService {
       const userPrompt = this.buildUserPrompt(request.prompt, request.stylePreset);
 
       // Call OpenRouter API
-      const rawCode = await this.callOpenRouter(systemPrompt, userPrompt);
+      const rawResponse = await this.callOpenRouter(systemPrompt, userPrompt);
+
+      // Extract explanation and code from response
+      const { explanation, code } = this.extractExplanationAndCode(rawResponse);
 
       // Validate and clean the code
-      const result = this.validateAndCleanCode(rawCode);
+      const result = this.validateAndCleanCode(code);
+
+      // Include explanation in result if code is valid
+      if (result.success && explanation) {
+        result.explanation = explanation;
+      }
 
       return result;
     } catch (error) {
@@ -86,15 +95,19 @@ export class ManimCodeGeneratorService {
   }
 
   private buildSystemPrompt(): string {
-    return `You are an expert Manim animation code generator. Your task is to generate valid Python code for Manim animations.
+    return `You are an expert Manim animation code generator. Your task is to generate valid Python code AND a brief explanation for Manim animations.
 
 CRITICAL REQUIREMENTS:
-1. Output MUST be valid Python code only - NO markdown code fences, NO explanations, NO prose
-2. MUST contain exactly ONE class that inherits from Scene
-3. MUST include "from manim import *" at the beginning
-4. MUST have a construct(self) method that creates the animation
-5. The code must be complete and executable
-6. Do NOT include any text outside the code
+1. Respond with EXACTLY TWO sections, separated by a blank line:
+   SECTION 1: EXPLANATION (3-6 sentences describing what the animation shows and why)
+   SECTION 2: CODE (valid Python code only - NO markdown code fences)
+2. The EXPLANATION must be clear, readable, and reference what the animation demonstrates
+3. The CODE must:
+   - Contain exactly ONE class that inherits from Scene
+   - Include "from manim import *" at the beginning
+   - Have a construct(self) method that creates the animation
+   - Be complete and executable
+   - NOT include any text outside the code section
 
 OUTPUT CONSTRAINTS (MANDATORY):
 - Animation duration: MAXIMUM 12 seconds total
@@ -105,7 +118,21 @@ OUTPUT CONSTRAINTS (MANDATORY):
 - Keep animations simple using only: basic shapes (Circle, Square, Triangle, Rectangle, Line, Dot, Polygon), basic animations (FadeIn, FadeOut, GrowFromCenter, ShrinkToCenter, Rotate, Shift, ScaleInPlace, Write, Unwrite)
 - Do NOT attempt to modify camera, resolution, frame_rate, or pixel dimensions
 
-Generate the complete Manim Scene class now:`;
+RESPONSE FORMAT EXAMPLE:
+---
+This animation demonstrates the concept of rotating a square. We create a square shape and animate it rotating 360 degrees around its center. The rotation happens smoothly over 2 seconds, showing how geometric shapes can be transformed in mathematical visualizations.
+
+from manim import *
+
+class RotatingSquare(Scene):
+    def construct(self):
+        square = Square()
+        self.add(square)
+        self.play(Rotate(square, angle=2*PI, run_time=2))
+        self.wait(1)
+---
+
+Now generate the response with explanation followed by code:`;
   }
 
   private buildUserPrompt(userPrompt: string, stylePreset: StylePreset): string {
@@ -126,7 +153,30 @@ User Request: ${userPrompt}
 
 ${styleGuidelines[stylePreset]}
 
-Remember: Output ONLY the Python code with no markdown, no explanations, no extra text.`;
+Remember: Output the explanation first, then a blank line, then the Python code. No markdown or extra text outside these two sections.`;
+  }
+
+  private extractExplanationAndCode(rawResponse: string): { explanation: string; code: string } {
+    const trimmed = rawResponse.trim();
+
+    // Find the first occurrence of "from manim import *"
+    const codeStartIndex = trimmed.indexOf('from manim import *');
+
+    if (codeStartIndex === -1) {
+      // No code found, treat entire response as potential code
+      return {
+        explanation: '',
+        code: trimmed,
+      };
+    }
+
+    // Everything before the code start is the explanation
+    const explanation = trimmed.substring(0, codeStartIndex).trim();
+
+    // Everything from the code start onwards is the code
+    const code = trimmed.substring(codeStartIndex).trim();
+
+    return { explanation, code };
   }
 
   private async callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string> {

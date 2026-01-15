@@ -26,7 +26,7 @@ export default function JobStatusBadge({ status }: JobStatusBadgeProps) {
     >
       <span
         className={`w-2 h-2 rounded-full mr-2 ${
-          status === 'generating' || status === 'rendering'
+          status === 'generating_code' || status === 'rendering'
             ? 'animate-pulse bg-current'
             : 'bg-current'
         }`}

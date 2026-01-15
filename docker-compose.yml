@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:7.0
+    container_name: mathmotion-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: mathmotion
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js frontend and API
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mathmotion-app
+    ports:
+      - "3000:3000"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DB_NAME: mathmotion
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DOCKER_IMAGE: manimcommunity/manim:latest
+      RENDER_TIMEOUT_MS: 120000
+      RENDER_MEMORY_LIMIT_MB: 1024
+      RENDER_CPU_LIMIT: 2
+      TEMP_DIR: /tmp/mathmotion
+      NODE_ENV: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - mathmotion_temp:/tmp/mathmotion
+    networks:
+      - mathmotion-network
+
+  # Optional: Manim community image pre-download
+  # This ensures the Manim image is available for rendering
+  manim-preloader:
+    image: manimcommunity/manim:latest
+    container_name: mathmotion-manim
+    entrypoint: /bin/true
+    depends_on:
+      - app
+
+volumes:
+  mongodb_data:
+  mathmotion_temp:
+
+networks:
+  mathmotion-network:
+    driver: bridge

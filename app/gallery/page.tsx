@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { GALLERY_EXAMPLES } from '@/lib/constants';
 import { GalleryExample } from '@/types';
 import ExampleCard from '@/components/gallery/ExampleCard';
+import { galleryCache } from '@/lib/services/galleryCache';
 
 export default function GalleryPage() {
   const router = useRouter();
@@ -20,7 +21,17 @@ export default function GalleryPage() {
     setLoadingId(example.id);
 
     try {
-      // Submit job to API (same pattern as PromptForm)
+      // Check if we have a cached result for this example
+      const cachedJob = galleryCache.getCachedJob(example.id);
+      if (cachedJob) {
+        // Use cached job - instant navigation
+        console.log(`[Gallery] Using cached result for ${example.id}`);
+        router.push(`/result/${cachedJob.id}`);
+        return;
+      }
+
+      // No cache - submit new job
+      console.log(`[Gallery] Submitting new job for ${example.id}`);
       const response = await fetch('/api/jobs/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,6 +46,9 @@ export default function GalleryPage() {
       }
 
       const { job } = await response.json();
+
+      // Cache the new job result
+      galleryCache.setCachedJob(example.id, example.prompt, example.stylePreset, job);
 
       // Navigate to result page
       router.push(`/result/${job.id}`);

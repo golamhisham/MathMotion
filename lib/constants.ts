@@ -13,10 +13,17 @@ export const DEFAULT_STYLE_PRESET: StylePreset = '3Blue1Brown';
 export const POLLING_INTERVAL_MS = 3000;
 export const TERMINAL_JOB_STATES: JobStatus[] = ['done', 'failed'];
 
+// Job timeout thresholds (milliseconds)
+export const JOB_TIMEOUT_MS = {
+  queued: 30 * 1000,              // 30 seconds
+  generating_code: 3 * 60 * 1000, // 3 minutes
+  rendering: 90 * 1000,           // 90 seconds
+} as const;
+
 // Job status display configuration
 export const JOB_STATUS_CONFIG = {
   queued: { label: 'Queued', color: 'gray' },
-  generating: { label: 'Generating Code', color: 'blue' },
+  generating_code: { label: 'Generating Code', color: 'blue' },
   rendering: { label: 'Rendering Video', color: 'purple' },
   done: { label: 'Complete', color: 'green' },
   failed: { label: 'Failed', color: 'red' },
@@ -83,5 +90,71 @@ export const GALLERY_EXAMPLES: GalleryExample[] = [
     title: 'Prime Number Spiral Pattern',
     prompt: 'Create the Ulam spiral by arranging integers in a spiral pattern and highlighting the prime numbers. Show the unexpected diagonal patterns that emerge in the prime distribution.',
     stylePreset: 'Minimalist',
+  },
+  {
+    id: 'polynomial-roots',
+    title: 'Polynomial Roots Visualization',
+    prompt: 'Visualize how the roots of a polynomial change as coefficients vary. Show the roots in the complex plane and animate how they move when parameters change.',
+    stylePreset: 'Classic',
+  },
+  {
+    id: 'geometric-series',
+    title: 'Geometric Series Convergence',
+    prompt: 'Animate a geometric series showing rectangles of decreasing size that represent each term. Demonstrate how the sum converges to a limit value as more terms are added.',
+    stylePreset: 'Dark',
+  },
+  {
+    id: 'mobius-strip',
+    title: '3D Möbius Strip',
+    prompt: 'Construct a 3D Möbius strip and animate it rotating. Show how it has only one surface by following a path along the strip that returns to the starting point but on the "opposite" side.',
+    stylePreset: '3Blue1Brown',
+  },
+  {
+    id: 'taylor-series',
+    title: 'Taylor Series Approximation',
+    prompt: 'Show how Taylor series polynomials approximate a function near a point. Animate with increasing polynomial degrees and show convergence to the true function.',
+    stylePreset: 'Classic',
+  },
+  {
+    id: 'vector-field',
+    title: 'Vector Field Visualization',
+    prompt: 'Display a 2D vector field (e.g., gradient of a function). Show how particles move along the field lines. Animate several particles flowing through the field.',
+    stylePreset: 'Minimalist',
+  },
+  {
+    id: 'binomial-expansion',
+    title: 'Binomial Expansion Pascal Triangle',
+    prompt: 'Visualize Pascal\'s triangle and show how each element corresponds to coefficients in binomial expansion. Animate building up the triangle row by row.',
+    stylePreset: 'Dark',
+  },
+  {
+    id: 'exponential-growth',
+    title: 'Exponential Growth Comparison',
+    prompt: 'Compare exponential growth with polynomial and linear growth. Show three curves on the same graph and animate how exponential eventually dominates the others.',
+    stylePreset: '3Blue1Brown',
+  },
+  {
+    id: 'sine-cosine-relationship',
+    title: 'Sine and Cosine Relationship',
+    prompt: 'Show the relationship between sine and cosine by displaying a rotating unit circle alongside their function graphs. Animate the point moving around the circle and trace the resulting curves.',
+    stylePreset: 'Classic',
+  },
+  {
+    id: 'intersection-planes',
+    title: 'Line Intersection in 3D',
+    prompt: 'Visualize two 3D planes and animate their intersection to show it forms a line. Highlight the normal vectors of each plane and their relationship to the intersection line.',
+    stylePreset: 'Minimalist',
+  },
+  {
+    id: 'pi-approximation',
+    title: 'Monte Carlo Pi Approximation',
+    prompt: 'Visualize the Monte Carlo method for approximating pi by randomly generating points inside a square and checking if they fall within a circle. Show the convergence to pi as more points are added.',
+    stylePreset: 'Dark',
+  },
+  {
+    id: 'bezier-curves',
+    title: 'Bézier Curve Animation',
+    prompt: 'Demonstrate Bézier curves with control points. Show how moving the control points changes the curve shape. Animate a point traveling along the Bézier curve.',
+    stylePreset: '3Blue1Brown',
   },
 ];
